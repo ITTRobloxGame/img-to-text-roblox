@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>GIF / Frames → Pixel Hex Converter</title>
+<style>
+body {
+  margin:0;
+  font-family:Inter, Roboto, sans-serif;
+  background:#121212;
+  color:#e7e7e7;
+  display:flex;
+  flex-wrap:wrap;
+  gap:18px;
+  padding:18px;
+  transition: background 0.5s ease;
+}
+.panel {
+  background: linear-gradient(145deg, #1b1b1b, #242424);
+  padding:16px;
+  border-radius:12px;
+  flex:1 1 420px;
+  min-width:320px;
+  transition: transform 0.3s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+.panel:hover{
+  transform: translateY(-6px) scale(1.02);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.5);
+  background: linear-gradient(145deg, #232323, #2c2c2c);
+}
+h1{margin:0 0 12px 0;font-size:18px; color:#cfd8dc;}
+label{display:block;font-size:13px;margin:8px 0 4px;color:#9aa0a6;}
+input[type="file"], input[type="number"], input[type="text"], input[type="color"], textarea, input[type="range"]{
+  width:100%;
+  padding:10px;
+  border-radius:8px;
+  border:1px solid #2e2e2e;
+  background:#151515;
+  color:#e7e7e7;
+  transition: border 0.3s ease, box-shadow 0.3s ease;
+}
+input:focus{
+  border:1px solid #2a8fbd;
+  outline:none;
+  box-shadow:0 0 8px rgba(42,143,189,0.5);
+}
+textarea{min-height:200px;resize:vertical;}
+.buttons{display:flex;gap:8px;align-items:center;margin-top:12px;}
+button{
+  padding:10px 14px;
+  border-radius:10px;
+  border:0;
+  background: linear-gradient(135deg,#2a8fbd,#1c7aa5);
+  color:#fff;
+  cursor:pointer;
+  font-weight:600;
+  transition: transform 0.2s ease, box-shadow 0.3s ease, background 0.3s ease;
+}
+button:hover{
+  transform: translateY(-2px) scale(1.05);
+  box-shadow: 0 6px 20px rgba(0,0,0,0.5);
+  background: linear-gradient(135deg,#1c7aa5,#2a8fbd);
+}
+button.secondary{
+  background:#3a3a3a;
+}
+button.secondary:hover{
+  background:#4a4a4a;
+}
+#status{color:#9aa0a6;font-size:13px;margin-left:8px; transition: opacity 0.4s ease;}
+.preview{
+  background:#0f0f0f;
+  border-radius:10px;
+  padding:12px;
+  min-height:120px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+  box-shadow: inset 0 0 5px rgba(255,255,255,0.05);
+}
+.preview:hover{
+  transform: scale(1.02);
+  box-shadow: inset 0 0 10px rgba(255,255,255,0.1), 0 6px 20px rgba(0,0,0,0.3);
+}
+.meta{color:#9aa0a6;font-size:13px;margin-top:8px;}
+.frame-sep{color:#9aa0a6;font-style:italic;margin:6px 0;}
+.checkbox-inline{display:flex;gap:6px;align-items:center;font-size:13px;color:#9aa0a6;}
+.fs-container{
+  position: fixed; top:0; left:0; width:100vw; height:100vh;
+  background: rgba(0,0,0,0.9);
+  display: flex; justify-content: center; align-items: center;
+  z-index: 9999;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+.fs-container.show{opacity:1;}
+</style>
+</head>
+<body>
+<div class="panel">
+  <h1>Конвертор изображения → пиксели</h1>
+  <label>Выберите изображение (PNG / JPG / GIF)</label>
+  <input id="file" type="file" accept="image/*">
+  <label>Или выберите папку с кадрами</label>
+  <input id="folder" type="file" webkitdirectory directory multiple>
+  <div class="options" style="margin-top:10px">
+    <div>
+      <label for="maxW">max width (0 = исходная)</label>
+      <input id="maxW" type="number" value="50" min="0">
+    </div>
+    <div>
+      <label for="maxH">max height (0 = исходная)</label>
+      <input id="maxH" type="number" value="50" min="0">
+    </div>
+    <div>
+      <label class="checkbox-inline"><input id="alphaTo" type="checkbox"> Заменять прозрачность цветом</label>
+      <input id="alphaColor" type="color" value="#ffffff">
+    </div>
+    <div>
+      <label class="checkbox-inline"><input id="allFrames" type="checkbox" checked> Экспорт всех кадров</label>
+      <span class="small" style="color:#9aa0a6">если выключено — только 1-й кадр</span>
+    </div>
+    <div style="margin-top:10px">
+      <label for="speedRange">Скорость анимации: <span id="speedLabel">1x</span></label>
+      <input type="range" id="speedRange" min="0.1" max="5" step="0.1" value="1">
+    </div>
+  </div>
+  <label for="downToken">Токен конца строки</label>
+  <input id="downToken" type="text" value="(down)">
+  <div class="buttons">
+    <button id="convert">Преобразовать</button>
+    <button id="copy" class="secondary">Скопировать</button>
+    <button id="download" class="secondary">Скачать .txt</button>
+    <span id="status"></span>
+  </div>
+  <label for="output" style="margin-top:10px">Вывод</label>
+  <textarea id="output" placeholder="#RRGGBB #RRGGBB (down)"></textarea>
+</div>
+
+<div class="panel" style="flex:0 1 360px">
+  <h1>Превью</h1>
+  <div class="preview" id="preview">вставьте изображение</div>
+  <div class="meta" id="info"></div>
+  <div class="frame-sep" id="frameInfo"></div>
+</div>
+
+<canvas id="canvas" style="display:none;"></canvas>
+<script src="https://unpkg.com/gifuct-js/dist/gifuct.min.js"></script>
+<script>
+const fileInput=document.getElementById('file');
+const folderInput=document.getElementById('folder');
+const convertBtn=document.getElementById('convert');
+const copyBtn=document.getElementById('copy');
+const downloadBtn=document.getElementById('download');
+const output=document.getElementById('output');
+const preview=document.getElementById('preview');
+const info=document.getElementById('info');
+const frameInfo=document.getElementById('frameInfo');
+const canvas=document.getElementById('canvas');
+const ctx=canvas.getContext('2d');
+
+const speedRange=document.getElementById('speedRange');
+const speedLabel=document.getElementById('speedLabel');
+let animationSpeed=parseFloat(speedRange.value);
+speedRange.addEventListener('input',()=>{
+  animationSpeed=parseFloat(speedRange.value);
+  speedLabel.innerText=animationSpeed+'x';
+});
+
+function setStatus(t){document.getElementById('status').innerText=t||'';}
+function rgbToHex(r,g,b){return '#'+[r,g,b].map(x=>{const h=x.toString(16);return h.length===1?'0'+h:h}).join('');}
+function applyAlpha(r,g,b,a,alphaTo,alphaColor){return (alphaTo&&a===0)?alphaColor.toUpperCase():rgbToHex(r,g,b).toUpperCase();}
+function getPixelText(ctx,w,h,downToken,alphaTo,alphaColor){
+  const data=ctx.getImageData(0,0,w,h).data;
+  let out='';
+  for(let y=0;y<h;y++){
+    for(let x=0;x<w;x++){
+      const i=(y*w+x)*4;
+      out+=applyAlpha(data[i],data[i+1],data[i+2],data[i+3],alphaTo,alphaColor)+(x===w-1?'':' ');
+    }
+    out+=' '+downToken+'\n';
+  }
+  return out;
+}
+function drawPatch(patch,srcW,srcH,destW,destH,alphaTo,alphaColor){
+  const off=document.createElement('canvas');
+  off.width=srcW; off.height=srcH;
+  const octx=off.getContext('2d');
+  const imgData=octx.createImageData(srcW,srcH);
+  imgData.data.set(patch);
+  octx.putImageData(imgData,0,0);
+  canvas.width=destW; canvas.height=destH;
+  if(alphaTo){
+    const off2=document.createElement('canvas');
+    off2.width=destW; off2.height=destH;
+    const o2=off2.getContext('2d');
+    o2.fillStyle=alphaColor;
+    o2.fillRect(0,0,destW,destH);
+    o2.drawImage(off,0,0,destW,destH);
+    ctx.clearRect(0,0,destW,destH);
+    ctx.drawImage(off2,0,0);
+  }else{
+    ctx.clearRect(0,0,destW,destH);
+    ctx.drawImage(off,0,0,destW,destH);
+  }
+}
+
+async function showPreviewImages(frames,displayW,displayH){
+  preview.innerHTML='';
+  const pvCanvas=document.createElement('canvas');
+  pvCanvas.width=displayW; pvCanvas.height=displayH;
+  pvCanvas.style.maxWidth='100%';
+  pvCanvas.style.imageRendering='pixelated';
+  preview.appendChild(pvCanvas);
+  const pctx=pvCanvas.getContext('2d');
+  let frameIndex=0,lastTime=performance.now();
+  function drawNextFrame(now){
+    const frame=frames[frameIndex];
+    const fpsDelay=1000/60/animationSpeed;
+    if(now-lastTime>=fpsDelay){
+      drawPatch(frame.patch,frame.dims.width,frame.dims.height,displayW,displayH,
+                document.getElementById('alphaTo').checked,
+                document.getElementById('alphaColor').value);
+      pctx.clearRect(0,0,displayW,displayH);
+      pctx.drawImage(canvas,0,0,displayW,displayH);
+      frameIndex=(frameIndex+1)%frames.length;
+      lastTime=now;
+    }
+    requestAnimationFrame(drawNextFrame);
+  }
+  requestAnimationFrame(drawNextFrame);
+}
+
+// --- Обработка GIF, папок и изображений ---
+async function handleGIF(file,maxW,maxH,alphaTo,alphaColor,downToken){
+  setStatus('Парсинг GIF...');
+  const buffer=await file.arrayBuffer();
+  const gif=window.gifuct.parseGIF(buffer);
+  const frames=window.gifuct.decompressFrames(gif,true);
+  if(frames.length===0){alert('Нет кадров'); return;}
+  const srcW=gif.lsd.width||frames[0].dims.width;
+  const srcH=gif.lsd.height||frames[0].dims.height;
+  info.innerText=`GIF: ${srcW}x${srcH}, кадров: ${frames.length}`;
+  const displayW=maxW>0?maxW:srcW;
+  const displayH=maxH>0?maxH:srcH;
+  const allFrames=document.getElementById('allFrames').checked;
+  const framesToProcess=allFrames?frames:[frames[0]];
+  let resultText='';
+  for(let fi=0;fi<framesToProcess.length;fi++){
+    const frame=framesToProcess[fi];
+    drawPatch(frame.patch,srcW,srcH,displayW,displayH,alphaTo,alphaColor);
+    const frameText=getPixelText(ctx,displayW,displayH,downToken,alphaTo,alphaColor);
+    if(allFrames&&fi>0) resultText+='(tab)\n';
+    resultText+=frameText;
+    frameInfo.innerText=`Обработан кадр ${fi+1} из ${framesToProcess.length}`;
+    await new Promise(r=>setTimeout(r,6));
+  }
+  output.value=resultText.trim(); frameInfo.innerText=''; setStatus('Готово');
+  await showPreviewImages(framesToProcess,displayW,displayH);
+}
+
+async function handleFolder(files,maxW,maxH,alphaTo,alphaColor,downToken){
+  const sortedFiles=Array.from(files).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));
+  const displayW=maxW>0?maxW:100; const displayH=maxH>0?maxH:100;
+  let resultText=''; let framesToPreview=[];
+  for(let i=0;i<sortedFiles.length;i++){
+    const file=sortedFiles[i]; const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await img.decode();
+    const destW=maxW>0?maxW:img.width; const destH=maxH>0?maxH:img.height; canvas.width=destW; canvas.height=destH;
+    if(alphaTo){ctx.fillStyle=alphaColor; ctx.fillRect(0,0,destW,destH); ctx.drawImage(img,0,0,destW,destH);}
+    else{ctx.clearRect(0,0,destW,destH); ctx.drawImage(img,0,0,destW,destH);}
+    const frameText=getPixelText(ctx,destW,destH,downToken,alphaTo,alphaColor);
+    if(i>0) resultText+='(tab)\n'; resultText+=frameText;
+    const patch=ctx.getImageData(0,0,destW,destH).data;
+    framesToPreview.push({patch,dims:{width:destW,height:destH}});
+    frameInfo.innerText=`Обработан кадр ${i+1} из ${sortedFiles.length}`;
+    await new Promise(r=>setTimeout(r,6));
+  }
+  output.value=resultText.trim(); frameInfo.innerText=''; setStatus('Готово');
+  await showPreviewImages(framesToPreview,displayW,displayH);
+}
+
+async function handleImageFile(file){
+  const downToken=document.getElementById('downToken').value||(downToken='(down)');
+  const maxW=parseInt(document.getElementById('maxW').value)||50;
+  const maxH=parseInt(document.getElementById('maxH').value)||50;
+  const alphaTo=document.getElementById('alphaTo').checked;
+  const alphaColor=document.getElementById('alphaColor').value||'#FFFFFF';
+  const type=file.type.toLowerCase(); preview.innerHTML='';
+  if(type.includes('gif') && window.gifuct){await handleGIF(file,maxW,maxH,alphaTo,alphaColor,downToken);}
+  else{
+    setStatus('Загрузка изображения...');
+    const url=URL.createObjectURL(file); const img=new Image(); img.src=url; await img.decode();
+    const origW=img.width,origH=img.height;
+    const destW=maxW>0?maxW:origW; const destH=maxH>0?maxH:origH;
+    canvas.width=destW; canvas.height=destH;
+    if(alphaTo){ctx.fillStyle=alphaColor; ctx.fillRect(0,0,destW,destH); ctx.drawImage(img,0,0,destW,destH);}
+    else{ctx.clearRect(0,0,destW,destH); ctx.drawImage(img,0,0,destW,destH);}
+    output.value=getPixelText(ctx,destW,destH,downToken,alphaTo,alphaColor);
+    info.innerText=`${origW}x${origH}`; setStatus('Готово');
+    await showPreviewImages([{patch:ctx.getImageData(0,0,destW,destH).data,dims:{width:destW,height:destH}}],destW,destH);
+  }
+}
+
+convertBtn.addEventListener('click',async()=>{
+  const f=fileInput.files[0]; const folderFiles=folderInput.files;
+  if(folderFiles.length>0){
+    try{
+      const downToken=document.getElementById('downToken').value||(downToken='(down)');
+      const maxW=parseInt(document.getElementById('maxW').value)||50;
+      const maxH=parseInt(document.getElementById('maxH').value)||50;
+      const alphaTo=document.getElementById('alphaTo').checked;
+      const alphaColor=document.getElementById('alphaColor').value||'#FFFFFF';
+      await handleFolder(folderFiles,maxW,maxH,alphaTo,alphaColor,downToken);
+    }catch(e){console.error(e); alert('Ошибка: '+e);}
+  } else if(f){try{await handleImageFile(f);}catch(e){console.error(e); alert('Ошибка: '+e);}}
+  else{alert('Выберите файл или папку');}
+});
+
+copyBtn.addEventListener('click',async()=>{try{await navigator.clipboard.writeText(output.value); setStatus('Скопировано'); setTimeout(()=>setStatus(''),1200);}catch(e){alert('Не удалось скопировать: '+e);}});
+downloadBtn.addEventListener('click',()=>{const blob=new Blob([output.value||''],{type:'text/plain;charset=utf-8'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='pixels.txt'; a.click(); URL.revokeObjectURL(a.href);});
+
+window.addEventListener('load',()=>{if(!window.gifuct) info.innerText='Внимание: библиотека gifuct-js не найдена. GIF будут недоступны.';});
+</script>
+</body>
+</html>
